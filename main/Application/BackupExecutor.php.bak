@@ -1,0 +1,105 @@
+<?php
+
+# Copyright (C) 2010-2015 Magima Co Ltd. All rights reserved.
+
+# @description
+
+# @file           BackupExecutor.php
+# @author         0294
+# @created date   2015-01-29 13:43
+# @version        1.0
+
+require_once('ExecConfiguration.php');
+require_once('HostsSpec.php');
+require_once('Task.php');
+require_once('../CommonLib/GlobalLogger.php');
+require_once('../CommonLib/metaData.php');
+
+class BackupExecutor {
+
+    public $backupDate;
+    public $backupConfig;
+    public $backupLogger;
+    public $backupHandler;
+    public $tasks = array();
+
+    public function __construct($taskArr) {
+        //init backupConfig, Date, Logger, Handler
+        echo "1\n";
+        $this->backupConfig = new ExecConfiguration();
+        echo "\n \n";
+        $this->backupDate = Utils::getDateInstance();
+        $this->backupLogger = GlobalLogger::getLoggerInstance();
+        
+        foreach ($taskArr as $key => $value) {
+            $task = new Task();
+            
+            $task->setIp($value['ip']);
+            $task->setTask_flow_id($value['task_flow_id']);
+
+            array_push($this->tasks, $task);
+        }
+    }
+    
+    public function start() {
+        // init host specification
+        $start_info = "**********START**********";
+        
+        $hostsSpec = new HostsSpec();    //queryHostSpecByIp(ip);
+        $config = $this->backupConfig;   //queryHostConfigByIp(ip);
+        $logger = $this->backupLogger;   //->addLog();
+        $date = $this->backupDate;   // getCurrentTime();
+        $logger->addLog("start message", 100, $start_info, NULL);
+        $logger::close();
+        echo Utils::green("\n" . $start_info . "\n");
+        
+        $task_num = 0;
+        foreach ($this->tasks as $key) {
+            $task_num++;
+        }
+
+        $exec_info = "$task_num task ready to do.";
+        echo Utils::green("\n" . $exec_info . "\n");
+        $logger->addLog("num of task", 100, $exec_info, NULL);
+
+        foreach ($this->tasks as $value) {
+
+            $tmp_ip = $value->getIp();
+            $host_spec = $hostsSpec->querryHostSpecByHostIp($tmp_ip);
+            $host_config = $config->queryHostConfigByIp($tmp_ip);
+
+            $host = $value->getHost($host_config['host_type']);
+            $handler = $value->getHandlerByType($host_spec->getBackup_type());
+            // setting hostSpec
+            $host->hostSpec = $host_spec;
+            
+            // settting osEnv
+            $tmp_osEnv = new OsEnv();
+            $tmp_osEnv->setOsType($host_spec->getOs_type());
+            $tmp_osEnv->setOsVersion($host_spec->getVersion());
+            $tmp_osEnv->setDiskTotalSpace($host_spec->getHdd());
+            $tmp_osEnv->setMemTotal($host_spec->getMemory());
+            $host->osEnv = $tmp_osEnv;
+            
+            //setting  host other var
+            $host->ip = $tmp_ip;
+            $host->username = $host_config['host_user'];
+            $host->workdir = WORK_DIR;
+
+            // setting BackupData now is not to do.
+            // get dest host config
+            $dest_ip = split(":", $host->hostSpec->getDest_backup_dir())[0];
+            $dest_host_config = $config->queryHostConfigByIp($dest_ip);
+            $handler->execute($host, $dest_host_config, $logger);
+            //print "#########\n";
+        }
+    }
+
+    public function stop() {
+        exit("backup exit.");
+    }
+}
+
+
+
+

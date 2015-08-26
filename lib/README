@@ -1,0 +1,10 @@
+first you must install libssh2.so
+then install ssh2 module
+
+install libssh2.so
+sudo ./configure --prefix=/opt/lampp/lib
+sudo make & make install
+
+install ssh2.so
+sudo ./configure --with-php-config=/opt/lampp/bin/php-config --with-ssh2=/opt/lampp/lib/php/
+sudo make & make install
